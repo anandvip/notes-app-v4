@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note Taking App V2</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            display: flex;
+            height: 100vh;
+        }
+
+        aside {
+            width: 200px;
+            background-color: #f4f4f4;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        main {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: #333;
+            color: #fff;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: #444;
+        }
+
+        .note {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+
+        .note h3 {
+            margin-bottom: 10px;
+        }
+
+        .note p {
+            margin-bottom: 10px;
+        }
+
+        .tag {
+            background-color: #e0e0e0;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+
+        #importInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <aside id="noteList">
+        <!-- Note titles will be listed here -->
+    </aside>
+    <main>
+        <header>
+            <h1>Note Taking App V2</h1>
+            <p>Welcome, <span id="userName">User</span>!</p>
+            <p>You have <span id="noteCount">0</span> notes.</p>
+            <button id="addNoteBtn">Add Note</button>
+            <button id="exportBtn">Export Notes</button>
+            <button id="importBtn">Import Notes</button>
+            <input type="file" id="importInput" accept=".json">
+        </header>
+        <div id="notesContainer">
+            <!-- Notes will be displayed here -->
+        </div>
+    </main>
+
+    <script>
+    // App state
+    let notes = [];
+    let currentUser = 'User';
+
+    // DOM Elements
+    const noteList = document.getElementById('noteList');
+    const notesContainer = document.getElementById('notesContainer');
+    const addNoteBtn = document.getElementById('addNoteBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const importInput = document.getElementById('importInput');
+    const userNameElement = document.getElementById('userName');
+    const noteCountElement = document.getElementById('noteCount');
+
+    // Initialize app
+    function init() {
+        loadNotes();
+        renderNotes();
+        updateSidebar();
+        updateUserInfo();
+
+        addNoteBtn.addEventListener('click', addNote);
+        exportBtn.addEventListener('click', exportNotes);
+        importBtn.addEventListener('click', () => importInput.click());
+        importInput.addEventListener('change', importNotes);
+    }
+
+    // Note operations
+    function addNote() {
+        const note = {
+            id: Date.now(),
+            title: 'New Note',
+            content: '',
+            tags: [],
+            createdAt: new Date().toLocaleString()
+        };
+        notes.push(note);
+        saveNotes();
+        renderNotes();
+        updateSidebar();
+    }
+
+    function updateNote(id, title, content) {
+        const note = notes.find(note => note.id === id);
+        if (note) {
+            note.title = title;
+            note.content = content;
+            note.tags = extractTags(content);
+            saveNotes();
+            updateSidebar();
+        }
+    }
+
+    function deleteNote(id) {
+        notes = notes.filter(note => note.id !== id);
+        saveNotes();
+        renderNotes();
+        updateSidebar();
+    }
+
+    function extractTags(content) {
+        const tagRegex = /#(\w+)/g;
+        return [...new Set(content.match(tagRegex) || [])].map(tag => tag.slice(1));
+    }
+
+    // Rendering
+    function renderNotes() {
+        notesContainer.innerHTML = notes.map(note => `
+            <div class="note" id="note-${note.id}">
+                <h3 contenteditable="true" onblur="updateNote(${note.id}, this.textContent, this.nextElementSibling.textContent)">${note.title}</h3>
+                <p contenteditable="true" onblur="updateNote(${note.id}, this.previousElementSibling.textContent, this.textContent)">${note.content}</p>
+                <div>${note.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>
+                <small>Created: ${note.createdAt}</small>
+                <button onclick="deleteNote(${note.id})">Delete</button>
+            </div>
+        `).join('');
+    }
+
+    function updateSidebar() {
+        noteList.innerHTML = notes.map(note => `
+            <a href="#note-${note.id}">${note.title}</a>
+        `).join('');
+        noteCountElement.textContent = notes.length;
+    }
+
+    function updateUserInfo() {
+        userNameElement.textContent = currentUser;
+    }
+
+    // Storage operations
+    function loadNotes() {
+        const storedNotes = localStorage.getItem('notes');
+        notes = storedNotes ? JSON.parse(storedNotes) : [];
+    }
+
+    function saveNotes() {
+        localStorage.setItem('notes', JSON.stringify(notes));
+    }
+
+    // Export and Import
+    function exportNotes() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(notes));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "notes_export.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    function importNotes(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedNotes = JSON.parse(e.target.result);
+                    if (Array.isArray(importedNotes)) {
+                        notes = [...notes, ...importedNotes];
+                        saveNotes();
+                        renderNotes();
+                        updateSidebar();
+                        alert('Notes imported successfully!');
+                    } else {
+                        throw new Error('Invalid file format');
+                    }
+                } catch (error) {
+                    console.error('Error importing notes:', error);
+                    alert('Error importing notes. Please make sure the file is a valid JSON export.');
+                }
+            };
+            reader.readAsText(file);
+        }
+    }
+
+    // Initialize the app
+    init();
+    </script>
+</body>
+</html>
